@@ -19,6 +19,11 @@
  *** system level stuff (for now)
  ***)
 
+(* Observable events. The memory address of load and store is observable. *)
+
+let armevent_INDUCT, armevent_RECURSION = define_type
+  "armevent = EventLoad int64 | EventStore int64";;
+
 let armstate_INDUCT,armstate_RECURSION,armstate_COMPONENTS =
   define_auto_record_type
    "armstate =
@@ -26,7 +31,8 @@ let armstate_INDUCT,armstate_RECURSION,armstate_COMPONENTS =
        registers : 5 word->int64;       // 31 general-purpose registers plus SP
        simdregisters: 5 word->int128;   // 32 SIMD registers
        flags: 4 word;                   // NZCV flags
-       memory: 64 word -> byte          // memory
+       memory: 64 word -> byte;         // memory
+       events: armevent list
      }";;
 
 let bytes_loaded = new_definition
@@ -1703,10 +1709,12 @@ let arm_LDR = define
  `arm_LDR (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
         let addr = word_add base (offset_address off s) in
+        let events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            Rt := read (memory :> wbytes addr) s ,,
+           events := CONS (EventLoad addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
@@ -1716,10 +1724,12 @@ let arm_STR = define
  `arm_STR (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
         let addr = word_add base (offset_address off s) in
+        let events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            memory :> wbytes addr := read Rt s ,,
+           events := CONS (EventStore addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))

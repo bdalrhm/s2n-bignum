@@ -866,6 +866,14 @@ let MAYCHANGE_IDEMPOT_TAC (asl,w as gl) =
         ACCEPT_TAC (EQ_MP (SYM th3) th4) gl
   | _ -> failwith "MAYCHANGE_IDEMPOT_TAC";;
 
+let COMPONENT_SINK = prove(`!B. ((\a:A b:B. T) ,, (\a:B b:C. T)) = (\a:A b:C. T)`, REWRITE_TAC [FUN_EQ_THM; seq]);;
+
+let MAYCHANGE_IDEMPOT_TAC' (asl, w as gl) =
+  match w with
+    Comb(Comb(Const("=", _), Comb(Comb(Const(",,", _), _), _)), Abs(_, Abs(_, Const("T", _)))) ->
+      MATCH_ACCEPT_TAC COMPONENT_SINK gl
+  | _ -> MAYCHANGE_IDEMPOT_TAC gl;;
+
 (*** Examples
 
   g `MAYCHANGE [X1; X2] ,, MAYCHANGE [X1; X2] = MAYCHANGE [X1; X2]`;;

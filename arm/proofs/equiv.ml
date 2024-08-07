@@ -507,9 +507,7 @@ let ARM_BASIC_STEP'2_TAC =
     (GEN_REWRITE_TAC (RATOR_CONV o RATOR_CONV o RAND_CONV) [stepn_thm] THEN
       GEN_REWRITE_TAC I [EVENTUALLY_N_STEP] THEN CONJ_TAC THENL
      [GEN_REWRITE_TAC BINDER_CONV [eth] THEN CONV_TAC EXISTS_NONTRIVIAL_CONV;
-      X_GEN_TAC sv' THEN
-      DISCH_THEN (fun th -> ASSUME_TAC th THEN MP_TAC th) THEN
-      GEN_REWRITE_TAC LAND_CONV [eth]]) (asl,w);;
+      X_GEN_TAC sv' THEN GEN_REWRITE_TAC LAND_CONV [eth]]) (asl,w);;
 
 (* Find `arm sprev sname` and `steps arm n s0 sprev`, and produce
    `steps arm (n+1) s0 sname` *)
@@ -572,8 +570,6 @@ let ARM_STEP'_TAC (mc_length_th,decode_th) subths sname
   (*** This does the basic decoding setup ***)
 
   ARM_BASIC_STEP'2_TAC decode_th sname THEN
-  (* Elongate 'steps arm n ..' to 'steps arm (n+1) ..' *)
-  ARM_ELONGATE_STEPS_TAC sname THEN
 
   (*** This part shows the code isn't self-modifying ***)
 

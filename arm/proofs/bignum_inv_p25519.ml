@@ -1264,7 +1264,7 @@ let DIVSTEP_FVEC_BOUNDS,DIVSTEP_GVEC_BOUNDS = (CONJ_PAIR o prove)
 
 let PACKED_DIVSTEP_TAC n shf s =
   let s' = if mem n shf then s+7 else s+8 in
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (s--s') THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (s--s') "" [] THEN
   SUBGOAL_THEN
    (subst [mk_small_numeral(n-1),`n:num`;
            mk_var("s"^string_of_int s',`:armstate`),`s:armstate`]
@@ -1430,14 +1430,15 @@ let DIVSTEP_MAT_UNPACK_19 = prove
   CONV_TAC INT_REDUCE_CONV THEN INT_ARITH_TAC);;
 
 let LOCAL_WORD_DIVSTEP59_CORRECT = prove
- (`!d f g pc.
-       ensures arm
+ (`!d f g pc es.
+       ensures_n arm
         (\s. aligned_bytes_loaded s (word pc)
                  (TRIM_LIST (12,16) bignum_inv_p25519_mc) /\
              read PC s = word(pc + 0x4f0) /\
              read X1 s = d /\
              read X2 s = f /\
-             read X3 s = g)
+             read X3 s = g /\
+             read events s = es)
         (\s. read PC s = word(pc + 0xe64) /\
              (ival d rem &2 = &1 /\
               ival f rem &2 = &1 /\
@@ -1447,27 +1448,30 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
               read X10 s = iword(M$1$1) /\
               read X11 s = iword(M$1$2) /\
               read X12 s = iword(M$2$1) /\
-              read X13 s = iword(M$2$2)))
-          (MAYCHANGE [PC; X0; X1; X2; X3; X4; X5; X6; X7; X7; X8; X9;
+              read X13 s = iword(M$2$2)) /\
+             read events s = es)
+          (MAYCHANGE [PC; X0; X1; X2; X3; X4; X5; X6; X7; X8; X9;
                       X10; X11; X12; X13; X14; X15; X16; X17] ,,
-           MAYCHANGE SOME_FLAGS)`,
+           MAYCHANGE SOME_FLAGS)
+        (\s. 0x25d)`,
   MAP_EVERY
     (fun t -> GEN_REWRITE_TAC I [FORALL_IVAL_GEN] THEN
               X_GEN_TAC t THEN STRIP_TAC)
     [`d:int`; `f:int`; `g:int`] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIMINDEX_64; ARITH_RULE `64 - 1 = 63`]) THEN
-  X_GEN_TAC `pc:num` THEN REWRITE_TAC[SOME_FLAGS] THEN
+  X_GEN_TAC `pc:num` THEN X_GEN_TAC `es:armevent list` THEN
+  REWRITE_TAC[SOME_FLAGS] THEN
 
   (*** Globalize the odd(d), odd(f) and |d| < 2^62 assumption ***)
 
   ASM_CASES_TAC `d rem &2 = &1 /\ f rem &2 = &1 /\ abs(d:int) < &2 pow 62` THENL
    [FIRST_X_ASSUM(CONJUNCTS_THEN STRIP_ASSUME_TAC) THEN ASM_REWRITE_TAC[];
-    ARM_QUICKSIM_TAC CORE_INV_P25519_EXEC [`read X0 s = x`] (1--605)] THEN
+    ARM_QUICKSIM'_TAC CORE_INV_P25519_EXEC [`read X0 s = x`; `read events s = es`] (1--605)] THEN
 
   (*** The first packing ***)
 
-  ENSURES_INIT_TAC "s0" THEN
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (1--5) THEN
+  ENSURES_N_INIT_TAC "s0" THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (1--5) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_FGVEC_PACK]) THEN
   FIRST_X_ASSUM(MP_TAC o SPEC `iword(divstep_dvec 0 (d,f,g)):int64` o
     MATCH_MP(MESON[] `read X1 s = a ==> !x. a = x ==> read X1 s = x`)) THEN
@@ -1479,15 +1483,15 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The unpacking of the first block ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (185--194) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (185--194) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_MAT_UNPACK_20]) THEN
   RULE_ASSUM_TAC(SIMP_RULE
    [DIVSTEP_MAT_MOD; divstep_dvec; DIVSTEP_D_MOD; ARITH_LE; ARITH_LT]) THEN
 
   (*** Application of first update matrix to f and g ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (195--202) THEN
-   RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (195--202) "" [] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
    `word(0 + val(iword(--x):int64) * val(iword g:int64)):int64 =
     iword(--(x * g))`]) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[word_ishr; GSYM IWORD_INT_ADD]) THEN
@@ -1537,7 +1541,7 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The second packing ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (203--207) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (203--207) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_FGVEC_PACK]) THEN
   FIRST_X_ASSUM(MP_TAC o SPEC `iword(divstep_dvec 0 (d,f,g)):int64` o
     MATCH_MP(MESON[] `read X1 s = a ==> !x. a = x ==> read X1 s = x`)) THEN
@@ -1549,14 +1553,14 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The unpacking of the second block ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (387--396) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (387--396) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_MAT_UNPACK_20]) THEN
   RULE_ASSUM_TAC(SIMP_RULE
    [DIVSTEP_MAT_MOD; divstep_dvec; DIVSTEP_D_MOD; ARITH_LE; ARITH_LT]) THEN
 
   (*** Application of second update matrix to f and g ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (397--404) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (397--404) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
    `word(0 + val(iword(--x):int64) * val(iword g:int64)):int64 =
     iword(--(x * g))`]) THEN
@@ -1607,7 +1611,7 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The third and final packing ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (405--409) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (405--409) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_FGVEC_PACK]) THEN
   FIRST_X_ASSUM(MP_TAC o SPEC `iword(divstep_dvec 0 (d,f,g)):int64` o
     MATCH_MP(MESON[] `read X1 s = a ==> !x. a = x ==> read X1 s = x`)) THEN
@@ -1619,7 +1623,7 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The interspersed matrix multiplication ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (500--507) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (500--507) "" [] THEN
 
   (*** The final 9 of the third block of 19 divsteps ***)
 
@@ -1627,15 +1631,15 @@ let LOCAL_WORD_DIVSTEP59_CORRECT = prove
 
   (*** The final unpacking is a little different as it's 19 not 20 ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (588--597) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (588--597) "" [] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[DIVSTEP_MAT_UNPACK_19]) THEN
   RULE_ASSUM_TAC(SIMP_RULE
    [DIVSTEP_MAT_MOD; divstep_dvec; DIVSTEP_D_MOD; ARITH_LE; ARITH_LT]) THEN
 
   (*** The final matrix multiplication and writeback ***)
 
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (598--605) THEN
-  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (598--605) "" [] THEN
+  ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[] THEN
   DISCARD_STATE_TAC "s605" THEN
 
   (*** The ending mathematics ***)
@@ -1752,30 +1756,96 @@ let p25519signedredlemma = prove
   SPEC_TAC(`n rem &2 pow 255`,`r:int`) THEN
   REWRITE_TAC[p_25519] THEN ASM_INT_ARITH_TAC);;
 
+let ENUMERATEL = new_recursive_definition num_RECURSION
+`(ENUMERATEL 0 (f:num->A list) = []) /\
+  (ENUMERATEL (SUC n) f = APPEND (f n) (ENUMERATEL n f))`;;
+
+let ENUMERATEL_ADD1 = prove(
+  `!n f:num->A list. ENUMERATEL (n + 1) f = APPEND (f n) (ENUMERATEL n f)`,
+  REWRITE_TAC [GSYM ADD1; ENUMERATEL]);;
+  
+let events = `\stackpointer. APPEND
+  [EventLoad (word_add stackpointer (word 80));
+   EventLoad (word_add stackpointer (word 120));
+   EventLoad (word_add stackpointer (word 88));
+   EventStore (word_add stackpointer (word 80));
+   EventLoad (word_add stackpointer (word 112));
+   EventLoad (word_add stackpointer (word 80));
+   EventStore (word_add stackpointer (word 72));
+   EventLoad (word_add stackpointer (word 104));
+   EventLoad (word_add stackpointer (word 72));
+   EventStore (word_add stackpointer (word 64));
+   EventLoad (word_add stackpointer (word 96));
+   EventLoad (word_add stackpointer (word 64));
+   EventLoad (word_add stackpointer (word 32));
+   EventLoad stackpointer;
+   EventLoad (word_add stackpointer (word 32));
+   EventLoad stackpointer]
+  (ENUMERATEL 9 (\j.
+    [EventLoad (word_add stackpointer (word 112));
+     EventLoad (word_add stackpointer (word 80));
+     EventLoad (word_add stackpointer (word 120));
+     EventLoad (word_add stackpointer (word 88));
+     EventStore (word_add stackpointer (word 112));
+     EventStore (word_add stackpointer (word 80));
+     EventLoad (word_add stackpointer (word 112));
+     EventLoad (word_add stackpointer (word 80));
+     EventStore (word_add stackpointer (word 104));
+     EventStore (word_add stackpointer (word 72));
+     EventLoad (word_add stackpointer (word 104));
+     EventLoad (word_add stackpointer (word 72));
+     EventStore (word_add stackpointer (word 96));
+     EventStore (word_add stackpointer (word 64));
+     EventLoad (word_add stackpointer (word 96));
+     EventLoad (word_add stackpointer (word 64));
+     EventStore (word_add stackpointer (word 56));
+     EventStore (word_add stackpointer (word 48));
+     EventStore (word_add stackpointer (word 24));
+     EventStore (word_add stackpointer (word 16));
+     EventLoad (word_add stackpointer (word 56));
+     EventLoad (word_add stackpointer (word 24));
+     EventStore (word_add stackpointer (word 40));
+     EventStore (word_add stackpointer (word 8));
+     EventLoad (word_add stackpointer (word 48));
+     EventLoad (word_add stackpointer (word 16));
+     EventStore (word_add stackpointer (word 32));
+     EventStore stackpointer;
+     EventLoad (word_add stackpointer (word 40));
+     EventLoad (word_add stackpointer (word 8));
+     EventLoad (word_add stackpointer (word 32));
+     EventLoad stackpointer;
+     EventLoad (word_add stackpointer (word 32));
+     EventLoad stackpointer]))`;;
+
 let CORE_INV_P25519_CORRECT = time prove
- (`!z x n pc stackpointer.
+ (`?f_es. !z x n pc stackpointer es.
         aligned 16 stackpointer /\
         ALL (nonoverlapping (stackpointer,128))
             [(word pc,0x1008); (z,8 * 4); (x,8 * 4)] /\
         nonoverlapping (word pc,0x1008) (z,8 * 4)
-        ==> ensures arm
+        ==> ensures_n arm
              (\s. aligned_bytes_loaded s (word pc)
                    (TRIM_LIST (12,16) bignum_inv_p25519_mc) /\
                   read PC s = word pc /\
                   read SP s = stackpointer /\
                   C_ARGUMENTS [z; x] s /\
-                  bignum_from_memory (x,4) s = n)
+                  bignum_from_memory (x,4) s = n /\
+                  read events s = es)
              (\s. read PC s = word (pc + 0x1008) /\
                   bignum_from_memory(z,4) s =
-                  (if p_25519 divides n then 0 else inverse_mod p_25519 n))
+                  (if p_25519 divides n then 0 else inverse_mod p_25519 n) /\
+                  read events s = APPEND (f_es stackpointer) es)
           (MAYCHANGE [PC; X0; X1; X2; X3; X4; X5; X6; X7; X8; X9;
                       X10; X11; X12; X13; X14; X15; X16; X17;
                       X19; X20; X21; X22] ,,
            MAYCHANGE SOME_FLAGS ,,
            MAYCHANGE [memory :> bytes(z,8 * 4);
-                      memory :> bytes(stackpointer,128)])`,
+                      memory :> bytes(stackpointer,128)] ,,
+           MAYCHANGE [events])
+          (\s. 0x21cd)`,
+  EXISTS_TAC events THEN
   MAP_EVERY X_GEN_TAC
-   [`z:int64`; `x:int64`; `n:num`; `pc:num`; `stackpointer:int64`] THEN
+   [`z:int64`; `x:int64`; `n:num`; `pc:num`; `stackpointer:int64`; `es:armevent list`] THEN
   REWRITE_TAC[ALLPAIRS; ALL; NONOVERLAPPING_CLAUSES] THEN
   REWRITE_TAC[C_ARGUMENTS; C_RETURN; SOME_FLAGS] THEN
   DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
@@ -1786,7 +1856,7 @@ let CORE_INV_P25519_CORRECT = time prove
 
   (*** Set up the main loop invariant ***)
 
-  ENSURES_WHILE_UP_TAC `9` `pc + 0x4e4` `pc + 0x4e4`
+  ENSURES_N_WHILE_UP_TAC `9` `pc + 0x4e4` `pc + 0x4e4`
    `\i s.
       read SP s = stackpointer /\
       read X20 s = z /\
@@ -1809,19 +1879,55 @@ let CORE_INV_P25519_CORRECT = time prove
        &(read (memory :> bytes(word_add stackpointer (word 96),8 * 4)) s))
       (mod (&p_25519)) /\
      (p_25519 divides n
-      ==> read (memory :> bytes(word_add stackpointer (word 64),8 * 4)) s = 0)`
+      ==> read (memory :> bytes(word_add stackpointer (word 64),8 * 4)) s = 0) /\
+      read events s = APPEND (ENUMERATEL i (\j.
+        [EventLoad (word_add stackpointer (word 112));
+         EventLoad (word_add stackpointer (word 80));
+         EventLoad (word_add stackpointer (word 120));
+         EventLoad (word_add stackpointer (word 88));
+         EventStore (word_add stackpointer (word 112));
+         EventStore (word_add stackpointer (word 80));
+         EventLoad (word_add stackpointer (word 112));
+         EventLoad (word_add stackpointer (word 80));
+         EventStore (word_add stackpointer (word 104));
+         EventStore (word_add stackpointer (word 72));
+         EventLoad (word_add stackpointer (word 104));
+         EventLoad (word_add stackpointer (word 72));
+         EventStore (word_add stackpointer (word 96));
+         EventStore (word_add stackpointer (word 64));
+         EventLoad (word_add stackpointer (word 96));
+         EventLoad (word_add stackpointer (word 64));
+         EventStore (word_add stackpointer (word 56));
+         EventStore (word_add stackpointer (word 48));
+         EventStore (word_add stackpointer (word 24));
+         EventStore (word_add stackpointer (word 16));
+         EventLoad (word_add stackpointer (word 56));
+         EventLoad (word_add stackpointer (word 24));
+         EventStore (word_add stackpointer (word 40));
+         EventStore (word_add stackpointer (word 8));
+         EventLoad (word_add stackpointer (word 48));
+         EventLoad (word_add stackpointer (word 16));
+         EventStore (word_add stackpointer (word 32));
+         EventStore stackpointer;
+         EventLoad (word_add stackpointer (word 40));
+         EventLoad (word_add stackpointer (word 8));
+         EventLoad (word_add stackpointer (word 32));
+         EventLoad stackpointer;
+         EventLoad (word_add stackpointer (word 32));
+         EventLoad stackpointer])) es`
+    `(\i:num. 0x36d)` `0x2f` `0` `0x2c9`
   THEN REPEAT CONJ_TAC THENL
    [ARITH_TAC;
 
     (*** Initial holding of the invariant ***)
     (*** Latter part is more or less a copy of bignum_mod_p25519_4 proof ***)
 
-    BIGNUM_TERMRANGE_TAC `4` `n:num` THEN
-    REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_INIT_TAC "s0" THEN
+    BIGNUM_TERMRANGE'_TAC `4` `n:num` THEN
+    REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_N_INIT_TAC "s0" THEN
     BIGNUM_LDIGITIZE_TAC "n_" `read (memory :> bytes (x,8 * 4)) s0` THEN
-    ARM_ACCSTEPS_TAC CORE_INV_P25519_EXEC
+    ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC
      [12;13;14;16; 18;19;20;21] (1--47) THEN
-    ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+    ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[APPEND; ENUMERATEL] THEN
     REWRITE_TAC[MULT_CLAUSES; SUB_0] THEN EXPAND_TAC "t" THEN
     REWRITE_TAC[DIVSTEP_D; DIVSTEP_F; DIVSTEP_G; GSYM WORD_IWORD] THEN
     CONV_TAC(ONCE_DEPTH_CONV BIGNUM_LEXPAND_CONV) THEN ASM_REWRITE_TAC[] THEN
@@ -1909,16 +2015,16 @@ let CORE_INV_P25519_CORRECT = time prove
     (*** Main invariant proof ***)
 
     X_GEN_TAC `i:num` THEN STRIP_TAC THEN
-    GHOST_INTRO_TAC `f:num` `read (memory :> bytes (stackpointer,8 * 4))` THEN
-    GHOST_INTRO_TAC `g:num`
+    GHOST_INTRO'_TAC `f:num` `read (memory :> bytes (stackpointer,8 * 4))` THEN
+    GHOST_INTRO'_TAC `g:num`
      `read (memory :> bytes (word_add stackpointer (word 32),8 * 4))` THEN
-    GHOST_INTRO_TAC `u:num`
+    GHOST_INTRO'_TAC `u:num`
      `read (memory :> bytes (word_add stackpointer (word 64),8 * 4))` THEN
-    GHOST_INTRO_TAC `v:num`
+    GHOST_INTRO'_TAC `v:num`
      `read (memory :> bytes (word_add stackpointer (word 96),8 * 4))` THEN
     REWRITE_TAC[GSYM BIGNUM_FROM_MEMORY_BYTES] THEN
-    MAP_EVERY (BIGNUM_TERMRANGE_TAC `4`) [`f:num`; `g:num`] THEN
-    REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_INIT_TAC "s0" THEN
+    MAP_EVERY (BIGNUM_TERMRANGE'_TAC `4`) [`f:num`; `g:num`] THEN
+    REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_N_INIT_TAC "s0" THEN
     BIGNUM_LDIGITIZE_TAC "f_"
      `read (memory :> bytes(stackpointer,8 * 4)) s0` THEN
     BIGNUM_LDIGITIZE_TAC "g_"
@@ -1928,13 +2034,50 @@ let CORE_INV_P25519_CORRECT = time prove
     BIGNUM_LDIGITIZE_TAC "v_"
      `read (memory :> bytes(word_add stackpointer (word 96),8 * 4)) s0` THEN
 
-    ARM_STEPS_TAC CORE_INV_P25519_EXEC (1--3) THEN
+    ARM_STEPS'_TAC CORE_INV_P25519_EXEC (1--3) "" [] THEN
     MP_TAC(SPECL
      [`iword (divstep_d (59 * i) t):int64`;
-      `f_0:int64`; `g_0:int64`; `pc:num`]
+      `f_0:int64`; `g_0:int64`; `pc:num`;
+      `CONS (EventLoad (word_add stackpointer (word 32)))
+      (CONS (EventLoad stackpointer)
+      (APPEND (ENUMERATEL i (\j.
+       [EventLoad (word_add stackpointer (word 112));
+        EventLoad (word_add stackpointer (word 80));
+        EventLoad (word_add stackpointer (word 120));
+        EventLoad (word_add stackpointer (word 88));
+        EventStore (word_add stackpointer (word 112));
+        EventStore (word_add stackpointer (word 80));
+        EventLoad (word_add stackpointer (word 112));
+        EventLoad (word_add stackpointer (word 80));
+        EventStore (word_add stackpointer (word 104));
+        EventStore (word_add stackpointer (word 72));
+        EventLoad (word_add stackpointer (word 104));
+        EventLoad (word_add stackpointer (word 72));
+        EventStore (word_add stackpointer (word 96));
+        EventStore (word_add stackpointer (word 64));
+        EventLoad (word_add stackpointer (word 96));
+        EventLoad (word_add stackpointer (word 64));
+        EventStore (word_add stackpointer (word 56));
+        EventStore (word_add stackpointer (word 48));
+        EventStore (word_add stackpointer (word 24));
+        EventStore (word_add stackpointer (word 16));
+        EventLoad (word_add stackpointer (word 56));
+        EventLoad (word_add stackpointer (word 24));
+        EventStore (word_add stackpointer (word 40));
+        EventStore (word_add stackpointer (word 8));
+        EventLoad (word_add stackpointer (word 48));
+        EventLoad (word_add stackpointer (word 16));
+        EventStore (word_add stackpointer (word 32));
+        EventStore stackpointer;
+        EventLoad (word_add stackpointer (word 40));
+        EventLoad (word_add stackpointer (word 8));
+        EventLoad (word_add stackpointer (word 32));
+        EventLoad stackpointer;
+        EventLoad (word_add stackpointer (word 32));
+        EventLoad stackpointer])) es))`]
      LOCAL_WORD_DIVSTEP59_CORRECT) THEN
-    REWRITE_TAC[SOME_FLAGS] THEN
-    ARM_BIGSTEP_TAC CORE_INV_P25519_EXEC "s4" THEN
+    REWRITE_TAC[SOME_FLAGS; ARITH_RULE `874 = 605 + 269`] THEN
+    ARM_BIGSTEP'_TAC CORE_INV_P25519_EXEC "s4" THEN
     FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN
 
     SUBGOAL_THEN `abs(divstep_d (59 * i) t) < &2 pow 62` ASSUME_TAC THENL
@@ -2010,7 +2153,7 @@ let CORE_INV_P25519_CORRECT = time prove
 
     (*** The trivial fact that we loop back ***)
 
-    ARM_STEPS_TAC CORE_INV_P25519_EXEC (5--7) THEN
+    ARM_STEPS'_TAC CORE_INV_P25519_EXEC (5--7) "" [] THEN
     SUBGOAL_THEN
      `word_sub (word (10 - i)) (word 1):int64 = word(10 - (i + 1))`
     SUBST_ALL_TAC THENL
@@ -2027,7 +2170,7 @@ let CORE_INV_P25519_CORRECT = time prove
 
     (*** Sign-magnitude breakdown of matrix entries ***)
 
-    ARM_STEPS_TAC CORE_INV_P25519_EXEC (8--19) THEN
+    ARM_STEPS'_TAC CORE_INV_P25519_EXEC (8--19) "" [] THEN
     RULE_ASSUM_TAC(REWRITE_RULE[WORD_SUB_0; COND_SWAP]) THEN
     RULE_ASSUM_TAC(REWRITE_RULE[WORD_UNMASK_64]) THEN
     SUBGOAL_THEN
@@ -2080,11 +2223,11 @@ let CORE_INV_P25519_CORRECT = time prove
 
     (*** Starting offset, common to both accumulations ***)
 
-    ARM_ACCSTEPS_TAC CORE_INV_P25519_EXEC [22;25] (20--25) THEN
+    ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC [22;25] (20--25) THEN
 
     (*** Accumulation of new f and g (then keep 2 accumulations above) ***)
 
-    ARM_ACCSTEPS_TAC CORE_INV_P25519_EXEC
+    ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC
      [28;30;31;34;36;37;39;41;42;44;45;46;47;50;52;53;56;58;
       59;63;65;66;68;70;71;76;78;79;82;84;85;89;91;92;94;96;
       97;105;107;108;113;114;116;117;126;128;129;133;134;136;137]
@@ -2155,7 +2298,7 @@ let CORE_INV_P25519_CORRECT = time prove
     (*** Accumulation of new u and v values before reduction ***)
     (*** Keep all the accumulations for the modular reductions ***)
 
-    ARM_ACCSTEPS_TAC CORE_INV_P25519_EXEC
+    ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC
      [144;146;147;150;152;154;156;158;159;161;163;165;168;170;171;
       174;176;178;180;182;183;185;187;189;192;194;195;198;200;202;
       204;206;207;209;211;213;218;220;221;225;226;228;229;234;235;
@@ -2205,7 +2348,8 @@ let CORE_INV_P25519_CORRECT = time prove
 
     (*** Finish the simulation before proceeding ***)
 
-    ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+    ENSURES_FINAL_STATE'_TAC THEN
+    ASM_REWRITE_TAC[ENUMERATEL_ADD1; GSYM APPEND_ASSOC; APPEND] THEN
     CONV_TAC(ONCE_DEPTH_CONV BIGNUM_LEXPAND_CONV) THEN
     ASM_REWRITE_TAC[] THEN DISCARD_STATE_TAC "s273" THEN
 
@@ -2627,24 +2771,28 @@ let CORE_INV_P25519_CORRECT = time prove
     (*** Because of the peculiar loop structure, completely trivial ***)
 
     X_GEN_TAC `i:num` THEN STRIP_TAC THEN
-    ARM_SIM_TAC CORE_INV_P25519_EXEC [] THEN ASM_REWRITE_TAC[];
+    ARM_SIM'_TAC CORE_INV_P25519_EXEC [] THEN ASM_REWRITE_TAC[];
 
-    ALL_TAC] THEN
+    (*** Continue tail computation below ***)
+    ALL_TAC;
+    
+    (*** Because of the constant loop bound, trivial arithmetic ***)
+    REWRITE_TAC[NSUM_CONST_NUMSEG] THEN ARITH_TAC] THEN
 
   (*** Start on the tail computation, with similar divstep reasoning ***)
 
   CONV_TAC(DEPTH_CONV NUM_SUB_CONV) THEN
   REWRITE_TAC[ARITH_RULE `59 * 9 = 531`] THEN
-  GHOST_INTRO_TAC `f:num` `read (memory :> bytes (stackpointer,8 * 4))` THEN
-  GHOST_INTRO_TAC `g:num`
+  GHOST_INTRO'_TAC `f:num` `read (memory :> bytes (stackpointer,8 * 4))` THEN
+  GHOST_INTRO'_TAC `g:num`
    `read (memory :> bytes (word_add stackpointer (word 32),8 * 4))` THEN
-  GHOST_INTRO_TAC `u:num`
+  GHOST_INTRO'_TAC `u:num`
    `read (memory :> bytes (word_add stackpointer (word 64),8 * 4))` THEN
-  GHOST_INTRO_TAC `v:num`
+  GHOST_INTRO'_TAC `v:num`
    `read (memory :> bytes (word_add stackpointer (word 96),8 * 4))` THEN
   REWRITE_TAC[GSYM BIGNUM_FROM_MEMORY_BYTES] THEN
-  MAP_EVERY (BIGNUM_TERMRANGE_TAC `4`) [`f:num`; `g:num`] THEN
-  REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY (BIGNUM_TERMRANGE'_TAC `4`) [`f:num`; `g:num`] THEN
+  REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN ENSURES_N_INIT_TAC "s0" THEN
   BIGNUM_LDIGITIZE_TAC "f_"
    `read (memory :> bytes(stackpointer,8 * 4)) s0` THEN
   BIGNUM_LDIGITIZE_TAC "g_"
@@ -2653,13 +2801,50 @@ let CORE_INV_P25519_CORRECT = time prove
    `read (memory :> bytes(word_add stackpointer (word 64),8 * 4)) s0` THEN
   BIGNUM_LDIGITIZE_TAC "v_"
    `read (memory :> bytes(word_add stackpointer (word 96),8 * 4)) s0` THEN
-  ARM_STEPS_TAC CORE_INV_P25519_EXEC (1--3) THEN
+  ARM_STEPS'_TAC CORE_INV_P25519_EXEC (1--3) "" [] THEN
   MP_TAC(SPECL
    [`iword (divstep_d 531 t):int64`;
-    `f_0:int64`; `g_0:int64`; `pc:num`]
+    `f_0:int64`; `g_0:int64`; `pc:num`;
+    `CONS (EventLoad (word_add stackpointer (word 32)))
+    (CONS (EventLoad stackpointer)
+    (APPEND (ENUMERATEL 9 (\j.
+      [EventLoad (word_add stackpointer (word 112));
+      EventLoad (word_add stackpointer (word 80));
+      EventLoad (word_add stackpointer (word 120));
+      EventLoad (word_add stackpointer (word 88));
+      EventStore (word_add stackpointer (word 112));
+      EventStore (word_add stackpointer (word 80));
+      EventLoad (word_add stackpointer (word 112));
+      EventLoad (word_add stackpointer (word 80));
+      EventStore (word_add stackpointer (word 104));
+      EventStore (word_add stackpointer (word 72));
+      EventLoad (word_add stackpointer (word 104));
+      EventLoad (word_add stackpointer (word 72));
+      EventStore (word_add stackpointer (word 96));
+      EventStore (word_add stackpointer (word 64));
+      EventLoad (word_add stackpointer (word 96));
+      EventLoad (word_add stackpointer (word 64));
+      EventStore (word_add stackpointer (word 56));
+      EventStore (word_add stackpointer (word 48));
+      EventStore (word_add stackpointer (word 24));
+      EventStore (word_add stackpointer (word 16));
+      EventLoad (word_add stackpointer (word 56));
+      EventLoad (word_add stackpointer (word 24));
+      EventStore (word_add stackpointer (word 40));
+      EventStore (word_add stackpointer (word 8));
+      EventLoad (word_add stackpointer (word 48));
+      EventLoad (word_add stackpointer (word 16));
+      EventStore (word_add stackpointer (word 32));
+      EventStore stackpointer;
+      EventLoad (word_add stackpointer (word 40));
+      EventLoad (word_add stackpointer (word 8));
+      EventLoad (word_add stackpointer (word 32));
+      EventLoad stackpointer;
+      EventLoad (word_add stackpointer (word 32));
+      EventLoad stackpointer])) es))`]
    LOCAL_WORD_DIVSTEP59_CORRECT) THEN
-  REWRITE_TAC[SOME_FLAGS] THEN
-  ARM_BIGSTEP_TAC CORE_INV_P25519_EXEC "s4" THEN
+  REWRITE_TAC[SOME_FLAGS; ARITH_RULE `710 = 605 + 105`] THEN
+  ARM_BIGSTEP'_TAC CORE_INV_P25519_EXEC "s4" THEN
   FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN
 
   SUBGOAL_THEN `abs(divstep_d 531 t) < &2 pow 62` ASSUME_TAC THENL
@@ -2735,12 +2920,12 @@ let CORE_INV_P25519_CORRECT = time prove
 
   (*** Complete all the simulation first ***)
 
-  ARM_ACCSTEPS_TAC CORE_INV_P25519_EXEC
+  ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC
    [31;34;36;37;40;42;44;47;49;50;53;55;57;60;62;63;
     66;68;70;75;77;78;82;83;85;86;92;93;96;97;99;100;
     102;103;104;105]
    (5--109) THEN
-  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[APPEND_ASSOC; APPEND] THEN
   CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV BIGNUM_LEXPAND_CONV)) THEN
   ASM_REWRITE_TAC[] THEN DISCARD_STATE_TAC "s109" THEN
   MATCH_MP_TAC CONG_IMP_EQ THEN EXISTS_TAC `2 EXP 255` THEN
@@ -3281,7 +3466,7 @@ let BIGNUM_INV_P25519_CORRECT = time prove
         ALL (nonoverlapping (stackpointer,128))
             [(word pc,0x1024); (z,8 * 4); (x,8 * 4)] /\
         nonoverlapping (word pc,0x1024) (z,8 * 4)
-        ==> ensures arm
+        ==> ensures_n arm
              (\s. aligned_bytes_loaded s (word pc) bignum_inv_p25519_mc /\
                   read PC s = word(pc + 0xc) /\
                   read SP s = stackpointer /\
@@ -3295,14 +3480,17 @@ let BIGNUM_INV_P25519_CORRECT = time prove
                       X19; X20; X21; X22] ,,
            MAYCHANGE SOME_FLAGS ,,
            MAYCHANGE [memory :> bytes(z,8 * 4);
-                      memory :> bytes(stackpointer,128)])`,
+                      memory :> bytes(stackpointer,128)] ,,
+           MAYCHANGE [events])
+          (\s. 0x21cd)`,
+  SUBST1_TAC (ARITH_RULE `0x21cd = 0x21cd + 0x0`) THEN
   MAP_EVERY X_GEN_TAC
    [`z:int64`; `x:int64`; `n:num`; `pc:num`; `stackpointer:int64`] THEN
   REWRITE_TAC[ALLPAIRS; ALL; NONOVERLAPPING_CLAUSES] THEN
   REWRITE_TAC[C_ARGUMENTS; C_RETURN; SOME_FLAGS] THEN
   DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
-  REWRITE_TAC(!simulation_precanon_thms) THEN ENSURES_INIT_TAC "s0" THEN
-  ARM_SUBROUTINE_SIM_TAC
+  REWRITE_TAC(!simulation_precanon_thms) THEN ENSURES_N_INIT_TAC "s0" THEN
+  ARM_SUBROUTINE_SIM'_TAC
       (bignum_inv_p25519_mc,BIGNUM_INV_P25519_EXEC,0xc,
        (GEN_REWRITE_CONV RAND_CONV [bignum_inv_p25519_mc] THENC TRIM_LIST_CONV)
        `TRIM_LIST (12,16) bignum_inv_p25519_mc`,
@@ -3310,7 +3498,7 @@ let BIGNUM_INV_P25519_CORRECT = time prove
       [`read X0 s`; `read X1 s`;
        `read (memory :> bytes(read X1 s,8 * 4)) s`;
        `pc + 0xc`; `stackpointer:int64`] 1 THEN
-  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]);;
+  ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[]);;
 
 let BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
  (`!z x n pc stackpointer returnaddress.
@@ -3318,7 +3506,7 @@ let BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
         ALL (nonoverlapping (word_sub stackpointer (word 160),160))
             [word pc,0x1024; z,8 * 4; x,8 * 4] /\
         nonoverlapping (word pc,0x1024) (z,8 * 4)
-        ==> ensures arm
+        ==> ensures_n arm
              (\s. aligned_bytes_loaded s (word pc) bignum_inv_p25519_mc /\
                   read PC s = word pc /\
                   read SP s = stackpointer /\
@@ -3330,7 +3518,10 @@ let BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
                   (if p_25519 divides n then 0 else inverse_mod p_25519 n))
              (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
               MAYCHANGE [memory :> bytes(z,8 * 4);
-                    memory :> bytes(word_sub stackpointer (word 160),160)])`,
-  ARM_ADD_RETURN_STACK_TAC
+                    memory :> bytes(word_sub stackpointer (word 160),160)] ,,
+              MAYCHANGE [events])
+             (\s. 0x21ce)`,
+  SUBST1_TAC (ARITH_RULE `0x21ce = 0x21cd + 0x1`) THEN
+  ARM_ADD_RETURN_STACK'_TAC
    BIGNUM_INV_P25519_EXEC BIGNUM_INV_P25519_CORRECT
    `[X19;X20;X21;X22]` 160);;

@@ -499,6 +499,27 @@ let EVENTUALLY_N_MONO =
       eventually_n step n P s ==> eventually_n step n Q s`,
     REWRITE_TAC[eventually_n] THEN MESON_TAC[]);;
 
+let EVENTUALLY_N_MONO2 =
+  prove(
+    `!(step:S->S->bool) (P:S->bool) (Q:S->bool).
+      (!s. P s ==> Q s) ==>
+      (!s n. eventually_n step n P s ==> eventually_n step n Q s)`,
+    REWRITE_TAC[eventually_n] THEN MESON_TAC[]);;
+
+let EVENTUALLY_N_IMP_EVENTUALLY_N = prove
+ (`!(step:S->S->bool) (P:S->bool) (Q:S->bool) n2.
+    (!s n1. eventually_n step n1 P s ==> eventually_n step (n1 + n2) Q s) <=>
+    (!s. P s ==> eventually_n step n2 Q s)`,
+  REPEAT GEN_TAC THEN EQ_TAC THENL [
+    MESON_TAC[EVENTUALLY_N_TRIVIAL; ARITH_RULE `0 + n = n`];
+    REWRITE_TAC [eventually_n] THEN
+    REPEAT STRIP_TAC THENL [
+      ASM_MESON_TAC[STEPS_ADD];
+      DISJ_CASES_TAC (ARITH_RULE `n' < n1 \/ n' >= n1`) THENL [
+        ASM_MESON_TAC[STEPS_ADD];
+        FIRST_X_ASSUM (fun th -> CHOOSE_THEN ASSUME_TAC (REWRITE_RULE [GE; LE_EXISTS] th)) THEN
+        ASM_MESON_TAC [LT_ADD_LCANCEL; STEPS_ADD]]]]);;
+
 let EVENTUALLY_N_EVENTUALLY =
   prove(
     `!(step:S->S->bool) (P:S->bool) n s.
@@ -685,7 +706,7 @@ let ENSURES2_TRANS = prove(
     REPEAT STRIP_TAC THEN
     FIRST_X_ASSUM (fun th -> MP_TAC (MATCH_MP th (ASSUME `(Q:S#S->bool) (s1'',s2'')`))) THEN
     MATCH_MP_TAC EVENTUALLY_N_MONO THEN BETA_TAC THEN GEN_TAC THEN
-    MATCH_MP_TAC EVENTUALLY_N_MONO THEN BETA_TAC THEN GEN_TAC THEN
+    MATCH_MP_TAC (SPEC_ALL EVENTUALLY_N_MONO) THEN BETA_TAC THEN GEN_TAC THEN
     REWRITE_TAC[seq] THEN ASM_MESON_TAC[];
     ALL_TAC
   ] THEN
