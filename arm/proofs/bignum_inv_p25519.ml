@@ -1815,7 +1815,7 @@ let events = `\stackpointer. APPEND
      EventLoad (word_add stackpointer (word 8));
      EventLoad (word_add stackpointer (word 32));
      EventLoad stackpointer;
-     EventBranch (i < 9);
+     EventBranch T;
      EventLoad (word_add stackpointer (word 32));
      EventLoad stackpointer]))`;;
 
@@ -1915,7 +1915,7 @@ let CORE_INV_P25519_ALL = time prove
          EventLoad (word_add stackpointer (word 8));
          EventLoad (word_add stackpointer (word 32));
          EventLoad stackpointer;
-         EventBranch (j < 9);
+         EventBranch T;
          EventLoad (word_add stackpointer (word 32));
          EventLoad stackpointer])) es`
     `(\i:num. 0x36d)` `0x2f` `0x2c9`
@@ -2076,7 +2076,7 @@ let CORE_INV_P25519_ALL = time prove
         EventLoad (word_add stackpointer (word 8));
         EventLoad (word_add stackpointer (word 32));
         EventLoad stackpointer;
-        EventBranch (j < 9);
+        EventBranch T;
         EventLoad (word_add stackpointer (word 32));
         EventLoad stackpointer])) es))`]
      LOCAL_WORD_DIVSTEP59_CORRECT) THEN
@@ -2840,7 +2840,7 @@ let CORE_INV_P25519_ALL = time prove
       EventLoad (word_add stackpointer (word 8));
       EventLoad (word_add stackpointer (word 32));
       EventLoad stackpointer;
-      EventBranch (j < 9);
+      EventBranch T;
       EventLoad (word_add stackpointer (word 32));
       EventLoad stackpointer])) es))`]
    LOCAL_WORD_DIVSTEP59_CORRECT) THEN
