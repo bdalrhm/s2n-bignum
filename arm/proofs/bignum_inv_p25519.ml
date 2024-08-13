@@ -1779,9 +1779,10 @@ let events = `\stackpointer. APPEND
    EventLoad (word_add stackpointer (word 64));
    EventLoad (word_add stackpointer (word 32));
    EventLoad stackpointer;
+   EventBranch F;
    EventLoad (word_add stackpointer (word 32));
    EventLoad stackpointer]
-  (ENUMERATEL 9 (\j.
+  (ENUMERATEL 9 (\i.
     [EventLoad (word_add stackpointer (word 112));
      EventLoad (word_add stackpointer (word 80));
      EventLoad (word_add stackpointer (word 120));
@@ -1814,10 +1815,11 @@ let events = `\stackpointer. APPEND
      EventLoad (word_add stackpointer (word 8));
      EventLoad (word_add stackpointer (word 32));
      EventLoad stackpointer;
+     EventBranch (i < 9);
      EventLoad (word_add stackpointer (word 32));
      EventLoad stackpointer]))`;;
 
-let CORE_INV_P25519_CORRECT = time prove
+let CORE_INV_P25519_ALL = time prove
  (`?f_es. !z x n pc stackpointer es.
         aligned 16 stackpointer /\
         ALL (nonoverlapping (stackpointer,128))
@@ -1913,9 +1915,10 @@ let CORE_INV_P25519_CORRECT = time prove
          EventLoad (word_add stackpointer (word 8));
          EventLoad (word_add stackpointer (word 32));
          EventLoad stackpointer;
+         EventBranch (j < 9);
          EventLoad (word_add stackpointer (word 32));
          EventLoad stackpointer])) es`
-    `(\i:num. 0x36d)` `0x2f` `0` `0x2c9`
+    `(\i:num. 0x36d)` `0x2f` `0x2c9`
   THEN REPEAT CONJ_TAC THENL
    [ARITH_TAC;
 
@@ -2073,6 +2076,7 @@ let CORE_INV_P25519_CORRECT = time prove
         EventLoad (word_add stackpointer (word 8));
         EventLoad (word_add stackpointer (word 32));
         EventLoad stackpointer;
+        EventBranch (j < 9);
         EventLoad (word_add stackpointer (word 32));
         EventLoad stackpointer])) es))`]
      LOCAL_WORD_DIVSTEP59_CORRECT) THEN
@@ -2349,7 +2353,7 @@ let CORE_INV_P25519_CORRECT = time prove
     (*** Finish the simulation before proceeding ***)
 
     ENSURES_FINAL_STATE'_TAC THEN
-    ASM_REWRITE_TAC[ENUMERATEL_ADD1; GSYM APPEND_ASSOC; APPEND] THEN
+    ASM_REWRITE_TAC[ENUMERATEL_ADD1; GSYM APPEND_ASSOC; APPEND; TAUT `(if c then x else x) = x`] THEN
     CONV_TAC(ONCE_DEPTH_CONV BIGNUM_LEXPAND_CONV) THEN
     ASM_REWRITE_TAC[] THEN DISCARD_STATE_TAC "s273" THEN
 
@@ -2768,12 +2772,8 @@ let CORE_INV_P25519_CORRECT = time prove
       DISCH_THEN(MP_TAC o end_itlist CONJ o DESUM_RULE o CONJUNCTS) THEN
       DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN REAL_INTEGER_TAC];
 
-    (*** Because of the peculiar loop structure, completely trivial ***)
-
-    X_GEN_TAC `i:num` THEN STRIP_TAC THEN
-    ARM_SIM'_TAC CORE_INV_P25519_EXEC [] THEN ASM_REWRITE_TAC[];
-
     (*** Continue tail computation below ***)
+
     ALL_TAC;
     
     (*** Because of the constant loop bound, trivial arithmetic ***)
@@ -2840,6 +2840,7 @@ let CORE_INV_P25519_CORRECT = time prove
       EventLoad (word_add stackpointer (word 8));
       EventLoad (word_add stackpointer (word 32));
       EventLoad stackpointer;
+      EventBranch (j < 9);
       EventLoad (word_add stackpointer (word 32));
       EventLoad stackpointer])) es))`]
    LOCAL_WORD_DIVSTEP59_CORRECT) THEN
@@ -3494,7 +3495,7 @@ let BIGNUM_INV_P25519_CORRECT = time prove
       (bignum_inv_p25519_mc,BIGNUM_INV_P25519_EXEC,0xc,
        (GEN_REWRITE_CONV RAND_CONV [bignum_inv_p25519_mc] THENC TRIM_LIST_CONV)
        `TRIM_LIST (12,16) bignum_inv_p25519_mc`,
-       CORE_INV_P25519_CORRECT)
+       CORE_INV_P25519_ALL)
       [`read X0 s`; `read X1 s`;
        `read (memory :> bytes(read X1 s,8 * 4)) s`;
        `pc + 0xc`; `stackpointer:int64`] 1 THEN
