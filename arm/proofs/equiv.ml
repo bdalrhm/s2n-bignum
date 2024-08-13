@@ -492,7 +492,7 @@ let PRINT_TAC (s:string): tactic =
 (* A variant of ARM_BASIC_STEP_TAC, but
    - targets eventually_n
    - preserves 'arm s sname' at assumption *)
-let ARM_BASIC_STEP'2_TAC =
+let ARM_BASIC_STEP'_TAC =
   let arm_tm = `arm` and arm_ty = `:armstate` in
   fun decode_th sname (asl,w) ->
     (* w = `eventually_n _ {stepn} _ {sv}` *)
@@ -502,8 +502,7 @@ let ARM_BASIC_STEP'2_TAC =
     let stepn = dest_numeral(rand(rator(rator w))) in
     let stepn_decr = stepn -/ num 1 in
     (* stepn = 1+{stepn-1}*)
-    let stepn_thm = ARITH_RULE(
-      mk_eq(mk_numeral(stepn), mk_binary "+" (`1:num`,mk_numeral(stepn_decr)))) in
+    let stepn_thm = GSYM (NUM_ADD_CONV (mk_binary "+" (`1:num`,mk_numeral(stepn_decr)))) in
     (GEN_REWRITE_TAC (RATOR_CONV o RATOR_CONV o RAND_CONV) [stepn_thm] THEN
       GEN_REWRITE_TAC I [EVENTUALLY_N_STEP] THEN CONJ_TAC THENL
      [GEN_REWRITE_TAC BINDER_CONV [eth] THEN CONV_TAC EXISTS_NONTRIVIAL_CONV;
@@ -569,7 +568,7 @@ let ARM_STEP'_TAC (mc_length_th,decode_th) subths sname
                   (store_update_to:thm list ref option) =
   (*** This does the basic decoding setup ***)
 
-  ARM_BASIC_STEP'2_TAC decode_th sname THEN
+  ARM_BASIC_STEP'_TAC decode_th sname THEN
 
   (*** This part shows the code isn't self-modifying ***)
 

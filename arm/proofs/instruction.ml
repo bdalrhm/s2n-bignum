@@ -22,7 +22,7 @@
 (* Observable events. The memory address of load and store is observable. *)
 
 let armevent_INDUCT, armevent_RECURSION = define_type
-  "armevent = EventLoad int64 | EventStore int64";;
+  "armevent = EventLoad int64 | EventStore int64 | EventBranch bool";;
 
 let armstate_INDUCT,armstate_RECURSION,armstate_COMPONENTS =
   define_auto_record_type
@@ -952,9 +952,10 @@ let arm_BL_ABSOLUTE = define
 
 let arm_Bcond = define
  `arm_Bcond cc (off:21 word) =
-        \s. (PC := if condition_semantics cc s
-                   then word_add (word_sub (read PC s) (word 4)) (word_sx off)
-                   else read PC s) s`;;
+        \s. let events_old = read events s
+            and p = condition_semantics cc s in
+            (PC := (if p then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old) s`;;
 
 let arm_CBNZ = define
  `arm_CBNZ Rt (off:21 word) =
@@ -964,9 +965,10 @@ let arm_CBNZ = define
 
 let arm_CBZ = define
  `arm_CBZ Rt (off:21 word) =
-        \s. (PC := if read Rt s = word 0
-                   then word_add (word_sub (read PC s) (word 4)) (word_sx off)
-                   else read PC s) s`;;
+        \s. let events_old = read events s
+            and p = read Rt s = word 0 in
+            (PC := (if p then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old) s`;;
 
 let arm_CCMN = define
  `arm_CCMN Rm Rn (nzcv:4 word) cc =
@@ -2213,10 +2215,11 @@ let arm_CBNZ_ALT = prove
   REWRITE_TAC[VAL_EQ_0; arm_CBNZ]);;
 
 let arm_CBZ_ALT = prove
- (`arm_CBZ Rt (off:21 word) =
-        \s. (PC := if val(read Rt s) = 0
-                   then word_add (word_sub (read PC s) (word 4)) (word_sx off)
-                   else read PC s) s`,
+  (`arm_CBZ Rt (off:21 word) =
+        \s. let events_old = read events s
+            and p = val(read Rt s) = 0 in
+            (PC := (if p then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old) s`,
   REWRITE_TAC[VAL_EQ_0; arm_CBZ]);;
 
 (* ------------------------------------------------------------------------- *)

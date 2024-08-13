@@ -154,7 +154,7 @@ let PADLOOP_CONST_TIME = prove(
            read events s = es)
       (\s. aligned_bytes_loaded s (word pc) bignum_copy_mc /\ read PC s = word (pc + 0x3c) /\
            C_ARGUMENTS [word k; z; word (MIN k n); x; word k] s /\
-           read events s = ENUMERATEL (k - MIN k n) (\i. [EventStore (word_add z (word (8 * ((MIN k n) + i))))]))
+           read events s = APPEND (ENUMERATEL (k - MIN k n) (\i. [EventStore (word_add z (word (8 * ((MIN k n) + i))))])) es)
       (\s s'. T)
       (\s. 4 * (k - (MIN k n)))`,
   REWRITE_TAC [C_ARGUMENTS; NONOVERLAPPING_CLAUSES] THEN
