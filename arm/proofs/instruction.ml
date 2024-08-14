@@ -1710,8 +1710,8 @@ let arm_TRN2 = define
 let arm_LDR = define
  `arm_LDR (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
-        let events_old = read events s in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
@@ -1725,8 +1725,8 @@ let arm_LDR = define
 let arm_STR = define
  `arm_STR (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
-        let events_old = read events s in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
@@ -1740,11 +1740,13 @@ let arm_STR = define
 let arm_LDRB = define
  `arm_LDRB (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            Rt := word_zx (read (memory :> bytes8 addr) s) ,,
+           events := CONS (EventStore addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
@@ -1753,11 +1755,13 @@ let arm_LDRB = define
 let arm_STRB = define
  `arm_STRB (Rt:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            memory :> bytes8 addr := word_zx (read Rt s) ,,
+           events := CONS (EventStore addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
@@ -1770,7 +1774,8 @@ let arm_LDP = define
  `arm_LDP (Rt1:(armstate,N word)component)
           (Rt2:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             orthogonal_components Rt1 Rt2 /\
             (offset_writesback off
@@ -1779,6 +1784,8 @@ let arm_LDP = define
            let w = dimindex(:N) DIV 8 in
            Rt1 := read (memory :> wbytes addr) s ,,
            Rt2 := read (memory :> wbytes(word_add addr (word w))) s ,,
+           events := CONS (EventLoad (word_add addr (word w)))
+                    (CONS (EventLoad addr) events_old) ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
@@ -1788,7 +1795,8 @@ let arm_STP = define
  `arm_STP (Rt1:(armstate,N word)component)
           (Rt2:(armstate,N word)component) Rn off =
     \s. let base = read Rn s in
-        let addr = word_add base (offset_address off s) in
+        let addr = word_add base (offset_address off s)
+        and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
             orthogonal_components Rt1 Rt2 /\
             (offset_writesback off
@@ -1797,6 +1805,8 @@ let arm_STP = define
            let w = dimindex(:N) DIV 8 in
            memory :> wbytes addr := read Rt1 s ,,
            memory :> wbytes(word_add addr (word w)) := read Rt2 s ,,
+           events := CONS (EventStore (word_add addr (word w)))
+                    (CONS (EventStore addr) events_old) ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))

@@ -1764,8 +1764,14 @@ let ENUMERATEL_ADD1 = prove(
   `!n f:num->A list. ENUMERATEL (n + 1) f = APPEND (f n) (ENUMERATEL n f)`,
   REWRITE_TAC [GSYM ADD1; ENUMERATEL]);;
   
-let events = `\stackpointer. APPEND
-  [EventLoad (word_add stackpointer (word 80));
+let events = `\z x stackpointer. APPEND
+  [EventStore (word_add z (word 24));
+   EventStore (word_add z (word 16));
+   EventStore (word_add z (word 8));
+   EventStore z;
+   EventLoad (word_add stackpointer (word 80));
+   EventLoad (word_add stackpointer (word 72));
+   EventLoad (word_add stackpointer (word 64));
    EventLoad (word_add stackpointer (word 120));
    EventLoad (word_add stackpointer (word 88));
    EventStore (word_add stackpointer (word 80));
@@ -1782,42 +1788,75 @@ let events = `\stackpointer. APPEND
    EventBranch F;
    EventLoad (word_add stackpointer (word 32));
    EventLoad stackpointer]
-  (ENUMERATEL 9 (\i.
-    [EventLoad (word_add stackpointer (word 112));
-     EventLoad (word_add stackpointer (word 80));
-     EventLoad (word_add stackpointer (word 120));
-     EventLoad (word_add stackpointer (word 88));
+  (APPEND 
+    (ENUMERATEL 9 (\i.
+      [EventStore (word_add stackpointer (word 120));
+       EventStore (word_add stackpointer (word 112));
+       EventStore (word_add stackpointer (word 104));
+       EventStore (word_add stackpointer (word 96));
+       EventLoad (word_add stackpointer (word 112));
+       EventLoad (word_add stackpointer (word 104));
+       EventLoad (word_add stackpointer (word 96));
+       EventStore (word_add stackpointer (word 88));
+       EventStore (word_add stackpointer (word 80));
+       EventStore (word_add stackpointer (word 72));
+       EventStore (word_add stackpointer (word 64));
+       EventLoad (word_add stackpointer (word 80));
+       EventLoad (word_add stackpointer (word 72));
+       EventLoad (word_add stackpointer (word 64));
+       EventLoad (word_add stackpointer (word 120));
+       EventLoad (word_add stackpointer (word 88));
+       EventStore (word_add stackpointer (word 112));
+       EventStore (word_add stackpointer (word 80));
+       EventLoad (word_add stackpointer (word 112));
+       EventLoad (word_add stackpointer (word 80));
+       EventStore (word_add stackpointer (word 104));
+       EventStore (word_add stackpointer (word 72));
+       EventLoad (word_add stackpointer (word 104));
+       EventLoad (word_add stackpointer (word 72));
+       EventStore (word_add stackpointer (word 96));
+       EventStore (word_add stackpointer (word 64));
+       EventLoad (word_add stackpointer (word 96));
+       EventLoad (word_add stackpointer (word 64));
+       EventStore (word_add stackpointer (word 56));
+       EventStore (word_add stackpointer (word 48));
+       EventStore (word_add stackpointer (word 24));
+       EventStore (word_add stackpointer (word 16));
+       EventLoad (word_add stackpointer (word 56));
+       EventLoad (word_add stackpointer (word 24));
+       EventStore (word_add stackpointer (word 40));
+       EventStore (word_add stackpointer (word 8));
+       EventLoad (word_add stackpointer (word 48));
+       EventLoad (word_add stackpointer (word 16));
+       EventStore (word_add stackpointer (word 32));
+       EventStore stackpointer;
+       EventLoad (word_add stackpointer (word 40));
+       EventLoad (word_add stackpointer (word 8));
+       EventLoad (word_add stackpointer (word 32));
+       EventLoad stackpointer;
+       EventBranch T;
+       EventLoad (word_add stackpointer (word 32));
+       EventLoad stackpointer]))
+    [EventStore (word_add stackpointer (word 120));
      EventStore (word_add stackpointer (word 112));
-     EventStore (word_add stackpointer (word 80));
-     EventLoad (word_add stackpointer (word 112));
-     EventLoad (word_add stackpointer (word 80));
      EventStore (word_add stackpointer (word 104));
-     EventStore (word_add stackpointer (word 72));
-     EventLoad (word_add stackpointer (word 104));
-     EventLoad (word_add stackpointer (word 72));
      EventStore (word_add stackpointer (word 96));
+     EventStore (word_add stackpointer (word 88));
+     EventStore (word_add stackpointer (word 80));
+     EventStore (word_add stackpointer (word 72));
      EventStore (word_add stackpointer (word 64));
-     EventLoad (word_add stackpointer (word 96));
-     EventLoad (word_add stackpointer (word 64));
      EventStore (word_add stackpointer (word 56));
      EventStore (word_add stackpointer (word 48));
+     EventStore (word_add stackpointer (word 40));
+     EventStore (word_add stackpointer (word 32));
+     EventLoad (word_add x (word 24));
+     EventLoad (word_add x (word 16));
+     EventLoad (word_add x (word 8));
+     EventLoad x;
      EventStore (word_add stackpointer (word 24));
      EventStore (word_add stackpointer (word 16));
-     EventLoad (word_add stackpointer (word 56));
-     EventLoad (word_add stackpointer (word 24));
-     EventStore (word_add stackpointer (word 40));
      EventStore (word_add stackpointer (word 8));
-     EventLoad (word_add stackpointer (word 48));
-     EventLoad (word_add stackpointer (word 16));
-     EventStore (word_add stackpointer (word 32));
-     EventStore stackpointer;
-     EventLoad (word_add stackpointer (word 40));
-     EventLoad (word_add stackpointer (word 8));
-     EventLoad (word_add stackpointer (word 32));
-     EventLoad stackpointer;
-     EventBranch T;
-     EventLoad (word_add stackpointer (word 32));
-     EventLoad stackpointer]))`;;
+     EventStore stackpointer])`;;
 
 let CORE_INV_P25519_ALL = time prove
  (`?f_es. !z x n pc stackpointer es.
@@ -1836,7 +1875,7 @@ let CORE_INV_P25519_ALL = time prove
              (\s. read PC s = word (pc + 0x1008) /\
                   bignum_from_memory(z,4) s =
                   (if p_25519 divides n then 0 else inverse_mod p_25519 n) /\
-                  read events s = APPEND (f_es stackpointer) es)
+                  read events s = APPEND (f_es z x stackpointer) es)
           (MAYCHANGE [PC; X0; X1; X2; X3; X4; X5; X6; X7; X8; X9;
                       X10; X11; X12; X13; X14; X15; X16; X17;
                       X19; X20; X21; X22] ,,
@@ -1882,42 +1921,75 @@ let CORE_INV_P25519_ALL = time prove
       (mod (&p_25519)) /\
      (p_25519 divides n
       ==> read (memory :> bytes(word_add stackpointer (word 64),8 * 4)) s = 0) /\
-      read events s = APPEND (ENUMERATEL i (\j.
-        [EventLoad (word_add stackpointer (word 112));
-         EventLoad (word_add stackpointer (word 80));
-         EventLoad (word_add stackpointer (word 120));
-         EventLoad (word_add stackpointer (word 88));
+      read events s = APPEND (APPEND
+        (ENUMERATEL i (\j.
+          [EventStore (word_add stackpointer (word 120));
+           EventStore (word_add stackpointer (word 112));
+           EventStore (word_add stackpointer (word 104));
+           EventStore (word_add stackpointer (word 96));
+           EventLoad (word_add stackpointer (word 112));
+           EventLoad (word_add stackpointer (word 104));
+           EventLoad (word_add stackpointer (word 96));
+           EventStore (word_add stackpointer (word 88));
+           EventStore (word_add stackpointer (word 80));
+           EventStore (word_add stackpointer (word 72));
+           EventStore (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 80));
+           EventLoad (word_add stackpointer (word 72));
+           EventLoad (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 120));
+           EventLoad (word_add stackpointer (word 88));
+           EventStore (word_add stackpointer (word 112));
+           EventStore (word_add stackpointer (word 80));
+           EventLoad (word_add stackpointer (word 112));
+           EventLoad (word_add stackpointer (word 80));
+           EventStore (word_add stackpointer (word 104));
+           EventStore (word_add stackpointer (word 72));
+           EventLoad (word_add stackpointer (word 104));
+           EventLoad (word_add stackpointer (word 72));
+           EventStore (word_add stackpointer (word 96));
+           EventStore (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 96));
+           EventLoad (word_add stackpointer (word 64));
+           EventStore (word_add stackpointer (word 56));
+           EventStore (word_add stackpointer (word 48));
+           EventStore (word_add stackpointer (word 24));
+           EventStore (word_add stackpointer (word 16));
+           EventLoad (word_add stackpointer (word 56));
+           EventLoad (word_add stackpointer (word 24));
+           EventStore (word_add stackpointer (word 40));
+           EventStore (word_add stackpointer (word 8));
+           EventLoad (word_add stackpointer (word 48));
+           EventLoad (word_add stackpointer (word 16));
+           EventStore (word_add stackpointer (word 32));
+           EventStore stackpointer;
+           EventLoad (word_add stackpointer (word 40));
+           EventLoad (word_add stackpointer (word 8));
+           EventLoad (word_add stackpointer (word 32));
+           EventLoad stackpointer;
+           EventBranch T;
+           EventLoad (word_add stackpointer (word 32));
+           EventLoad stackpointer]))
+        [EventStore (word_add stackpointer (word 120));
          EventStore (word_add stackpointer (word 112));
-         EventStore (word_add stackpointer (word 80));
-         EventLoad (word_add stackpointer (word 112));
-         EventLoad (word_add stackpointer (word 80));
          EventStore (word_add stackpointer (word 104));
-         EventStore (word_add stackpointer (word 72));
-         EventLoad (word_add stackpointer (word 104));
-         EventLoad (word_add stackpointer (word 72));
          EventStore (word_add stackpointer (word 96));
+         EventStore (word_add stackpointer (word 88));
+         EventStore (word_add stackpointer (word 80));
+         EventStore (word_add stackpointer (word 72));
          EventStore (word_add stackpointer (word 64));
-         EventLoad (word_add stackpointer (word 96));
-         EventLoad (word_add stackpointer (word 64));
          EventStore (word_add stackpointer (word 56));
          EventStore (word_add stackpointer (word 48));
+         EventStore (word_add stackpointer (word 40));
+         EventStore (word_add stackpointer (word 32));
+         EventLoad (word_add x (word 24));
+         EventLoad (word_add x (word 16));
+         EventLoad (word_add x (word 8));
+         EventLoad x;
          EventStore (word_add stackpointer (word 24));
          EventStore (word_add stackpointer (word 16));
-         EventLoad (word_add stackpointer (word 56));
-         EventLoad (word_add stackpointer (word 24));
-         EventStore (word_add stackpointer (word 40));
          EventStore (word_add stackpointer (word 8));
-         EventLoad (word_add stackpointer (word 48));
-         EventLoad (word_add stackpointer (word 16));
-         EventStore (word_add stackpointer (word 32));
-         EventStore stackpointer;
-         EventLoad (word_add stackpointer (word 40));
-         EventLoad (word_add stackpointer (word 8));
-         EventLoad (word_add stackpointer (word 32));
-         EventLoad stackpointer;
-         EventBranch T;
-         EventLoad (word_add stackpointer (word 32));
-         EventLoad stackpointer])) es`
+         EventStore stackpointer]) es`
     `(\i:num. 0x36d)` `0x2f` `0x2c9`
   THEN REPEAT CONJ_TAC THENL
    [ARITH_TAC;
@@ -1930,7 +2002,7 @@ let CORE_INV_P25519_ALL = time prove
     BIGNUM_LDIGITIZE_TAC "n_" `read (memory :> bytes (x,8 * 4)) s0` THEN
     ARM_ACCSTEPS'_TAC CORE_INV_P25519_EXEC
      [12;13;14;16; 18;19;20;21] (1--47) THEN
-    ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[APPEND; ENUMERATEL] THEN
+    ENSURES_FINAL_STATE'_TAC THEN ASM_REWRITE_TAC[ENUMERATEL; APPEND] THEN
     REWRITE_TAC[MULT_CLAUSES; SUB_0] THEN EXPAND_TAC "t" THEN
     REWRITE_TAC[DIVSTEP_D; DIVSTEP_F; DIVSTEP_G; GSYM WORD_IWORD] THEN
     CONV_TAC(ONCE_DEPTH_CONV BIGNUM_LEXPAND_CONV) THEN ASM_REWRITE_TAC[] THEN
@@ -2043,42 +2115,75 @@ let CORE_INV_P25519_ALL = time prove
       `f_0:int64`; `g_0:int64`; `pc:num`;
       `CONS (EventLoad (word_add stackpointer (word 32)))
       (CONS (EventLoad stackpointer)
-      (APPEND (ENUMERATEL i (\j.
-       [EventLoad (word_add stackpointer (word 112));
-        EventLoad (word_add stackpointer (word 80));
-        EventLoad (word_add stackpointer (word 120));
-        EventLoad (word_add stackpointer (word 88));
-        EventStore (word_add stackpointer (word 112));
-        EventStore (word_add stackpointer (word 80));
-        EventLoad (word_add stackpointer (word 112));
-        EventLoad (word_add stackpointer (word 80));
-        EventStore (word_add stackpointer (word 104));
-        EventStore (word_add stackpointer (word 72));
-        EventLoad (word_add stackpointer (word 104));
-        EventLoad (word_add stackpointer (word 72));
-        EventStore (word_add stackpointer (word 96));
-        EventStore (word_add stackpointer (word 64));
-        EventLoad (word_add stackpointer (word 96));
-        EventLoad (word_add stackpointer (word 64));
-        EventStore (word_add stackpointer (word 56));
-        EventStore (word_add stackpointer (word 48));
-        EventStore (word_add stackpointer (word 24));
-        EventStore (word_add stackpointer (word 16));
-        EventLoad (word_add stackpointer (word 56));
-        EventLoad (word_add stackpointer (word 24));
-        EventStore (word_add stackpointer (word 40));
-        EventStore (word_add stackpointer (word 8));
-        EventLoad (word_add stackpointer (word 48));
-        EventLoad (word_add stackpointer (word 16));
-        EventStore (word_add stackpointer (word 32));
-        EventStore stackpointer;
-        EventLoad (word_add stackpointer (word 40));
-        EventLoad (word_add stackpointer (word 8));
-        EventLoad (word_add stackpointer (word 32));
-        EventLoad stackpointer;
-        EventBranch T;
-        EventLoad (word_add stackpointer (word 32));
-        EventLoad stackpointer])) es))`]
+      (APPEND (APPEND
+        (ENUMERATEL i (\j.
+          [EventStore (word_add stackpointer (word 120));
+           EventStore (word_add stackpointer (word 112));
+           EventStore (word_add stackpointer (word 104));
+           EventStore (word_add stackpointer (word 96));
+           EventLoad (word_add stackpointer (word 112));
+           EventLoad (word_add stackpointer (word 104));
+           EventLoad (word_add stackpointer (word 96));
+           EventStore (word_add stackpointer (word 88));
+           EventStore (word_add stackpointer (word 80));
+           EventStore (word_add stackpointer (word 72));
+           EventStore (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 80));
+           EventLoad (word_add stackpointer (word 72));
+           EventLoad (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 120));
+           EventLoad (word_add stackpointer (word 88));
+           EventStore (word_add stackpointer (word 112));
+           EventStore (word_add stackpointer (word 80));
+           EventLoad (word_add stackpointer (word 112));
+           EventLoad (word_add stackpointer (word 80));
+           EventStore (word_add stackpointer (word 104));
+           EventStore (word_add stackpointer (word 72));
+           EventLoad (word_add stackpointer (word 104));
+           EventLoad (word_add stackpointer (word 72));
+           EventStore (word_add stackpointer (word 96));
+           EventStore (word_add stackpointer (word 64));
+           EventLoad (word_add stackpointer (word 96));
+           EventLoad (word_add stackpointer (word 64));
+           EventStore (word_add stackpointer (word 56));
+           EventStore (word_add stackpointer (word 48));
+           EventStore (word_add stackpointer (word 24));
+           EventStore (word_add stackpointer (word 16));
+           EventLoad (word_add stackpointer (word 56));
+           EventLoad (word_add stackpointer (word 24));
+           EventStore (word_add stackpointer (word 40));
+           EventStore (word_add stackpointer (word 8));
+           EventLoad (word_add stackpointer (word 48));
+           EventLoad (word_add stackpointer (word 16));
+           EventStore (word_add stackpointer (word 32));
+           EventStore stackpointer;
+           EventLoad (word_add stackpointer (word 40));
+           EventLoad (word_add stackpointer (word 8));
+           EventLoad (word_add stackpointer (word 32));
+           EventLoad stackpointer;
+           EventBranch T;
+           EventLoad (word_add stackpointer (word 32));
+           EventLoad stackpointer]))
+        [EventStore (word_add stackpointer (word 120));
+         EventStore (word_add stackpointer (word 112));
+         EventStore (word_add stackpointer (word 104));
+         EventStore (word_add stackpointer (word 96));
+         EventStore (word_add stackpointer (word 88));
+         EventStore (word_add stackpointer (word 80));
+         EventStore (word_add stackpointer (word 72));
+         EventStore (word_add stackpointer (word 64));
+         EventStore (word_add stackpointer (word 56));
+         EventStore (word_add stackpointer (word 48));
+         EventStore (word_add stackpointer (word 40));
+         EventStore (word_add stackpointer (word 32));
+         EventLoad (word_add x (word 24));
+         EventLoad (word_add x (word 16));
+         EventLoad (word_add x (word 8));
+         EventLoad x;
+         EventStore (word_add stackpointer (word 24));
+         EventStore (word_add stackpointer (word 16));
+         EventStore (word_add stackpointer (word 8));
+         EventStore stackpointer]) es))`]
      LOCAL_WORD_DIVSTEP59_CORRECT) THEN
     REWRITE_TAC[SOME_FLAGS; ARITH_RULE `874 = 605 + 269`] THEN
     ARM_BIGSTEP'_TAC CORE_INV_P25519_EXEC "s4" THEN
@@ -2807,42 +2912,75 @@ let CORE_INV_P25519_ALL = time prove
     `f_0:int64`; `g_0:int64`; `pc:num`;
     `CONS (EventLoad (word_add stackpointer (word 32)))
     (CONS (EventLoad stackpointer)
-    (APPEND (ENUMERATEL 9 (\j.
-      [EventLoad (word_add stackpointer (word 112));
-      EventLoad (word_add stackpointer (word 80));
-      EventLoad (word_add stackpointer (word 120));
-      EventLoad (word_add stackpointer (word 88));
-      EventStore (word_add stackpointer (word 112));
-      EventStore (word_add stackpointer (word 80));
-      EventLoad (word_add stackpointer (word 112));
-      EventLoad (word_add stackpointer (word 80));
-      EventStore (word_add stackpointer (word 104));
-      EventStore (word_add stackpointer (word 72));
-      EventLoad (word_add stackpointer (word 104));
-      EventLoad (word_add stackpointer (word 72));
-      EventStore (word_add stackpointer (word 96));
-      EventStore (word_add stackpointer (word 64));
-      EventLoad (word_add stackpointer (word 96));
-      EventLoad (word_add stackpointer (word 64));
-      EventStore (word_add stackpointer (word 56));
-      EventStore (word_add stackpointer (word 48));
-      EventStore (word_add stackpointer (word 24));
-      EventStore (word_add stackpointer (word 16));
-      EventLoad (word_add stackpointer (word 56));
-      EventLoad (word_add stackpointer (word 24));
-      EventStore (word_add stackpointer (word 40));
-      EventStore (word_add stackpointer (word 8));
-      EventLoad (word_add stackpointer (word 48));
-      EventLoad (word_add stackpointer (word 16));
-      EventStore (word_add stackpointer (word 32));
-      EventStore stackpointer;
-      EventLoad (word_add stackpointer (word 40));
-      EventLoad (word_add stackpointer (word 8));
-      EventLoad (word_add stackpointer (word 32));
-      EventLoad stackpointer;
-      EventBranch T;
-      EventLoad (word_add stackpointer (word 32));
-      EventLoad stackpointer])) es))`]
+    (APPEND (APPEND
+      (ENUMERATEL 9 (\i.
+        [EventStore (word_add stackpointer (word 120));
+         EventStore (word_add stackpointer (word 112));
+         EventStore (word_add stackpointer (word 104));
+         EventStore (word_add stackpointer (word 96));
+         EventLoad (word_add stackpointer (word 112));
+         EventLoad (word_add stackpointer (word 104));
+         EventLoad (word_add stackpointer (word 96));
+         EventStore (word_add stackpointer (word 88));
+         EventStore (word_add stackpointer (word 80));
+         EventStore (word_add stackpointer (word 72));
+         EventStore (word_add stackpointer (word 64));
+         EventLoad (word_add stackpointer (word 80));
+         EventLoad (word_add stackpointer (word 72));
+         EventLoad (word_add stackpointer (word 64));
+         EventLoad (word_add stackpointer (word 120));
+         EventLoad (word_add stackpointer (word 88));
+         EventStore (word_add stackpointer (word 112));
+         EventStore (word_add stackpointer (word 80));
+         EventLoad (word_add stackpointer (word 112));
+         EventLoad (word_add stackpointer (word 80));
+         EventStore (word_add stackpointer (word 104));
+         EventStore (word_add stackpointer (word 72));
+         EventLoad (word_add stackpointer (word 104));
+         EventLoad (word_add stackpointer (word 72));
+         EventStore (word_add stackpointer (word 96));
+         EventStore (word_add stackpointer (word 64));
+         EventLoad (word_add stackpointer (word 96));
+         EventLoad (word_add stackpointer (word 64));
+         EventStore (word_add stackpointer (word 56));
+         EventStore (word_add stackpointer (word 48));
+         EventStore (word_add stackpointer (word 24));
+         EventStore (word_add stackpointer (word 16));
+         EventLoad (word_add stackpointer (word 56));
+         EventLoad (word_add stackpointer (word 24));
+         EventStore (word_add stackpointer (word 40));
+         EventStore (word_add stackpointer (word 8));
+         EventLoad (word_add stackpointer (word 48));
+         EventLoad (word_add stackpointer (word 16));
+         EventStore (word_add stackpointer (word 32));
+         EventStore stackpointer;
+         EventLoad (word_add stackpointer (word 40));
+         EventLoad (word_add stackpointer (word 8));
+         EventLoad (word_add stackpointer (word 32));
+         EventLoad stackpointer;
+         EventBranch T;
+         EventLoad (word_add stackpointer (word 32));
+         EventLoad stackpointer]))
+      [EventStore (word_add stackpointer (word 120));
+       EventStore (word_add stackpointer (word 112));
+       EventStore (word_add stackpointer (word 104));
+       EventStore (word_add stackpointer (word 96));
+       EventStore (word_add stackpointer (word 88));
+       EventStore (word_add stackpointer (word 80));
+       EventStore (word_add stackpointer (word 72));
+       EventStore (word_add stackpointer (word 64));
+       EventStore (word_add stackpointer (word 56));
+       EventStore (word_add stackpointer (word 48));
+       EventStore (word_add stackpointer (word 40));
+       EventStore (word_add stackpointer (word 32));
+       EventLoad (word_add x (word 24));
+       EventLoad (word_add x (word 16));
+       EventLoad (word_add x (word 8));
+       EventLoad x;
+       EventStore (word_add stackpointer (word 24));
+       EventStore (word_add stackpointer (word 16));
+       EventStore (word_add stackpointer (word 8));
+       EventStore stackpointer]) es))`]
    LOCAL_WORD_DIVSTEP59_CORRECT) THEN
   REWRITE_TAC[SOME_FLAGS; ARITH_RULE `710 = 605 + 105`] THEN
   ARM_BIGSTEP'_TAC CORE_INV_P25519_EXEC "s4" THEN
