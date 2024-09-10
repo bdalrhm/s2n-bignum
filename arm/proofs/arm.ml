@@ -14,6 +14,48 @@ let arm_print_log = ref false;;
 (* currently go all the way to the semantics in one jump, no asm.            *)
 (* ------------------------------------------------------------------------- *)
 
+let GET = new_recursive_definition option_RECURSION
+  `GET(SOME (v:A)) = v`;;
+
+let BIND_EQ_ITE_IS_SOME = prove(
+  `!ao f:A->(B)option. ao >>= f = if is_some ao then f (GET ao) else NONE`,
+  MATCH_MP_TAC option_INDUCT THEN
+  REWRITE_TAC[is_some; GET; obind]);;
+
+let MATCH_OPT_EQ_ITE_IS_SOME = prove(
+  `!ao:(A)option x:A->B y:B. (match ao with | SOME a -> x a | NONE -> y) = if is_some ao then x (GET ao) else y`,
+  MATCH_MP_TAC option_INDUCT THEN
+  REWRITE_TAC[is_some; GET]);;
+
+(* Time: 20-25 secs *)
+let decode_insts_unique = prove(
+  `!w inst. decode w = SOME inst ==> !y z. inst x y /\ inst x z ==> y = z`,
+  let find_word_var = rand o rand o find_term (is_binary "pat_set") in
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[arm_logop; arm_adcop; arm_addop; arm_movop; arm_csop; arm_ccop;
+              arm_lsvop; arm_bfmop; arm_ldst; arm_ldst_q; arm_ldst_d; arm_ldstb;
+              arm_ldstp; arm_ldstp_d; decode;
+              BIND_EQ_ITE_IS_SOME; MATCH_OPT_EQ_ITE_IS_SOME] THEN
+  time(BITMATCH_CASES_TAC THEN REPEAT LET_TAC THEN
+  REPEAT COND_CASES_TAC THEN REPEAT BITMATCH_ASM_CASES_TAC THEN
+  ONCE_REWRITE_TAC[option_DISTINCT; option_INJ] THEN
+  ((DISCH_THEN CONTR_TAC) ORELSE         (* NONE = SOME inst *)
+   (DISCH_THEN (SUBST1_TAC o SYM) THEN   (* SOME (arm_* ...) = SOME inst *)
+    REPEAT_N 2 GEN_TAC THEN
+    ONCE_REWRITE_TAC (ARM_OPERATION_CLAUSES @ ARM_LOAD_STORE_CLAUSES) THEN
+    BETA_TAC THEN REPEAT LET_TAC THEN REPEAT COND_CASES_TAC THEN
+    REWRITE_TAC[assign; SEQ; F_DEF] THEN
+    CONV_TAC (ONCE_DEPTH_CONV SYM_CONV) THEN
+    DISCH_THEN (CONJUNCTS_THEN2 SUBST1_TAC SUBST1_TAC) THEN
+    REFL_TAC) ORELSE
+   (* This case should be handled by inner BITMATCH_CASES_TAC *)
+   (POP_ASSUM_LIST (MAP_EVERY MP_TAC) THEN (* ARB = SOME inst *)
+    W(MP_TAC o Fun.flip ISPEC VAL_BOUND o find_word_var o snd) THEN
+    REWRITE_TAC[CONSPAT_pat_set; NILPAT_pat_set] THEN
+    CONV_TAC (TOP_DEPTH_CONV UNWIND_CONV) THEN
+    REWRITE_TAC[VAL_WORD; DIMINDEX_2] THEN
+    ARITH_TAC))));;
+
 let arm_decode = new_definition `arm_decode s pc inst <=>
   ?i:int32. aligned_bytes_loaded s pc (bytelist_of_num 4 (val i)) /\
             decode i = SOME inst`;;
@@ -45,6 +87,11 @@ let arm_decode_unique = prove
       ARITH_RULE `256 EXP 4 = 2 EXP 32`; SYM DIMINDEX_32;
       GSYM WORD_EQ; WORD_VAL] (AP_TERM `num_of_bytelist` t) in
     ACCEPT_TAC (REWRITE_RULE [REWRITE_RULE [t2] d1; OPTION_INJ] d2)));;
+
+let arm_unique = prove(
+  `!x y z. arm x y /\ arm x z ==> y = z`,
+  REWRITE_TAC[arm; SEQ; arm_execute] THEN
+  MESON_TAC[arm_decode_unique; arm_decode; decode_insts_unique]);;
 
 let ARM_DECODES_THM =
   let pth = (UNDISCH_ALL o prove)

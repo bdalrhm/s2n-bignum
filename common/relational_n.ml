@@ -4,7 +4,7 @@ needs "common/relational2.ml";;
 let NSUM_REFLECT' = prove(`!x n. nsum (0..n) (\i. x(n - i)) = nsum (0..n) x`,
   REPEAT GEN_TAC THEN
   SUBST1_TAC (SPECL [`x:num->num`; `0`; `n:num`] NSUM_REFLECT) THEN
-  REWRITE_TAC [ARITH_RULE `~(n < 0) /\ (n - 0 = n)`]);;
+  REWRITE_TAC[ARITH_RULE `~(n < 0) /\ (n - 0 = n)`]);;
 
 let ENSURES_N_TRIVIAL = prove(
   `!step q f fn. ensures_n step (\x. F) q f fn`,
@@ -35,6 +35,26 @@ let ENSURES_N_BIGNUM_TERMRANGE_TAC =
      ASSUME_TAC
      (fun th -> REWRITE_TAC[th; ENSURES_N_TRIVIAL] THEN NO_TAC)
      (SPECL [k; m] pth);;
+
+let EVENTUALLY_EVENTUALLY_N = prove(
+  `!(step:S->S->bool). (!x y z. step x y /\ step x z ==> y = z) ==>
+   !P s. eventually step P s ==> ?n. eventually_n step n P s`,
+  GEN_TAC THEN DISCH_TAC THEN GEN_TAC THEN
+  MATCH_MP_TAC eventually_INDUCT THEN
+  CONJ_TAC THENL [
+    REPEAT STRIP_TAC THEN EXISTS_TAC `0` THEN
+    ASM_REWRITE_TAC[EVENTUALLY_N_TRIVIAL];
+    INTRO_TAC "!s; (@s'. HS) IH" THEN
+    REMOVE_THEN "IH" (fun ih -> USE_THEN "HS" (CHOOSE_TAC o MATCH_MP ih)) THEN
+    EXISTS_TAC `1 + n` THEN
+    ASM_MESON_TAC[EVENTUALLY_N_STEP]]);;
+
+let ENSURES_ENSURES_N = prove(
+  `!(step:S->S->bool) P Q C. (!x y z. step x y /\ step x z ==> y = z) ==>
+    ensures step P Q C ==> ?fn. ensures_n step P Q C fn`,
+  REWRITE_TAC[ensures; ensures_n; GSYM SKOLEM_THM_GEN] THEN
+  SEQ_IMP_REWRITE_TAC[EVENTUALLY_EVENTUALLY_N] THEN
+  MESON_TAC[]);;
 
 (* ------------------------------------------------------------------------- *)
 (* Classic precondition strengthening and postcondition weakening.           *)

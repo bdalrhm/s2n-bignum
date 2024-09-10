@@ -812,6 +812,20 @@ let ENSURES2_TRIVIAL = prove(
   REWRITE_TAC[ensures2;EVENTUALLY_N_TRIVIAL] THEN
   REWRITE_TAC[FORALL_PAIR_THM] THEN MESON_TAC[]);;
 
+let REL_MAYCHANGE_IDEMPOT_TAC =
+  (* MAYCHANGE. *)
+  REWRITE_TAC[FUN_EQ_THM] THEN
+  REWRITE_TAC[FORALL_PAIR_THM] THEN
+  REWRITE_TAC[SEQ_PAIR_SPLIT] THEN
+  REWRITE_TAC[ETA_AX] THEN
+  REPEAT STRIP_TAC THEN
+  ((MATCH_MP_TAC (MESON[] `!(p:A->A->bool) (q:A->A->bool) r s.
+    ((p = r) /\ (q = s)) ==> (p x1 x2 /\ q y1 y2 <=> r x1 x2 /\ s y1 y2)`) THEN
+    REWRITE_TAC[ETA_AX] THEN
+    MAYCHANGE_IDEMPOT_TAC)
+    ORELSE
+    (* a simpler case *)
+    (REWRITE_TAC[seq;EXISTS_PAIR_THM] THEN NO_TAC));;
 
 (* ENSURES2_WHILE_PAUP_TAC verifies a relational hoare triple of two WHILE loops,
    induction variables of which increasing from a to b - 1 (b - 1 is not included).
@@ -987,24 +1001,7 @@ let ENSURES2_WHILE_PAUP_TAC =
       loopinv;flagcond1;flagcond2;
       f_nsteps1;f_nsteps2;nsteps_pre1;nsteps_pre2;nsteps_post1;
       nsteps_post2] THEN
-    CONJ_TAC THENL [
-      (* MAYCHANGE. *)
-      REWRITE_TAC[FUN_EQ_THM] THEN
-      REWRITE_TAC[FORALL_PAIR_THM] THEN
-      REWRITE_TAC[SEQ_PAIR_SPLIT] THEN
-      REWRITE_TAC[ETA_AX] THEN
-      REPEAT STRIP_TAC THEN
-      ((MATCH_MP_TAC (MESON[] `!(p:A->A->bool) (q:A->A->bool) r s.
-        ((p = r) /\ (q = s)) ==> (p x1 x2 /\ q y1 y2 <=> r x1 x2 /\ s y1 y2)`) THEN
-        REWRITE_TAC[ETA_AX] THEN
-        MAYCHANGE_IDEMPOT_TAC)
-        ORELSE
-        (* a simpler case *)
-        (REWRITE_TAC[seq;EXISTS_PAIR_THM] THEN NO_TAC));
-
-      (* The remaining condition. *)
-      ALL_TAC
-    ];;
+    CONJ_TAC THENL [REL_MAYCHANGE_IDEMPOT_TAC; ALL_TAC];;
 
 (* A relational hoare triple version of ENSURES_INIT_TAC. *)
 let ENSURES2_INIT_TAC sname sname2 =

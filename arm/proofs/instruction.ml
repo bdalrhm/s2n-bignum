@@ -19,20 +19,26 @@
  *** system level stuff (for now)
  ***)
 
-(* Observable events. The memory address of load and store is observable. *)
+(* Observable events. The memory address of load and store is observable.
+   The condition of a branch is observable. *)
 
 let armevent_INDUCT, armevent_RECURSION = define_type
   "armevent = EventLoad int64 | EventStore int64 | EventBranch bool";;
+
+new_type_abbrev("armarch", `:int64#((5)word->int64)#((5)word->int128)#(4)word#(int64->byte)`);;
 
 let armstate_INDUCT,armstate_RECURSION,armstate_COMPONENTS =
   define_auto_record_type
    "armstate =
      { PC: int64;                       // One 64-bit program counter
-       registers : 5 word->int64;       // 31 general-purpose registers plus SP
+       registers: 5 word->int64;        // 31 general-purpose registers plus SP
        simdregisters: 5 word->int128;   // 32 SIMD registers
        flags: 4 word;                   // NZCV flags
-       memory: 64 word -> byte;         // memory
-       events: armevent list
+       memory: 64 word->byte;           // memory
+       oracle: num->armarch;            // oracle representing nondeterminism
+       ostate: num;                     // current state of the oracle
+       events: armevent list;           // microarchitectural state
+       preds: bool list                 // branch predications
      }";;
 
 let bytes_loaded = new_definition
@@ -957,6 +963,21 @@ let arm_Bcond = define
             (PC := (if p then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
              events := CONS (EventBranch p) events_old) s`;;
 
+let HD_OR = new_definition
+  `HD_OR xs (x:A) = if NULL xs then x else HD xs`;;
+
+let TL_OR = new_definition
+  `TL_OR xs (ys:A list) = if NULL xs then ys else TL xs`;;
+
+let arm_spec_Bcond = define
+ `arm_spec_Bcond cc (off:21 word) =
+        \s. let p = condition_semantics cc s
+            and events_old = read events s
+            and preds_old = read preds s in
+            (PC := (if HD_OR preds_old F then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old ,,
+             preds := TL_OR preds_old []) s`;;
+
 let arm_CBNZ = define
  `arm_CBNZ Rt (off:21 word) =
         \s. (PC := if ~(read Rt s = word 0)
@@ -969,6 +990,15 @@ let arm_CBZ = define
             and p = read Rt s = word 0 in
             (PC := (if p then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
              events := CONS (EventBranch p) events_old) s`;;
+
+let arm_spec_CBZ = define
+ `arm_spec_CBZ Rt (off:21 word) =
+        \s. let p = read Rt s = word 0
+            and events_old = read events s
+            and preds_old = read preds s in
+            (PC := (if HD_OR preds_old F then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old ,,
+             preds := TL_OR preds_old []) s`;;
 
 let arm_CCMN = define
  `arm_CCMN Rm Rn (nzcv:4 word) cc =
@@ -1696,8 +1726,8 @@ let arm_TRN2 = define
  *** the stack pointer is required to be quadword (16 byte, 128 bit)
  *** aligned prior to the address calculation and write-backs ---
  *** misalignment will cause a stack alignment fault". As usual we
- *** model the "fault" with a completely undefined end state. Note
- *** that this restriction is different from 32-bit ARM: the register
+ *** model the "fault" with a completely undefined architectural end state.
+ *** Note that this restriction is different from 32-bit ARM: the register
  *** SP itself may for us be unaligned when not used in addressing.
  ***
  *** In the case where there is a writeback to the register being
@@ -1713,14 +1743,23 @@ let arm_LDR = define
         let addr = word_add base (offset_address off s)
         and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
-            (offset_writesback off ==> orthogonal_components Rt Rn)
+           (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            Rt := read (memory :> wbytes addr) s ,,
            events := CONS (EventLoad addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+         else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 let arm_STR = define
  `arm_STR (Rt:(armstate,N word)component) Rn off =
@@ -1728,14 +1767,23 @@ let arm_STR = define
         let addr = word_add base (offset_address off s)
         and events_old = read events s in
         (if (Rn = SP ==> aligned 16 base) /\
-            (offset_writesback off ==> orthogonal_components Rt Rn)
+           (offset_writesback off ==> orthogonal_components Rt Rn)
          then
            memory :> wbytes addr := read Rt s ,,
            events := CONS (EventStore addr) events_old ,,
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+         else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 let arm_LDRB = define
  `arm_LDRB (Rt:(armstate,N word)component) Rn off =
@@ -1750,7 +1798,16 @@ let arm_LDRB = define
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+         else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 let arm_STRB = define
  `arm_STRB (Rt:(armstate,N word)component) Rn off =
@@ -1765,7 +1822,16 @@ let arm_STRB = define
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+         else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 (*** the actually encodable offsets are a bit more limited for LDP ***)
 (*** But this is all ignored at the present level and left to decoder ***)
@@ -1789,7 +1855,16 @@ let arm_LDP = define
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+         else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 let arm_STP = define
  `arm_STP (Rt1:(armstate,N word)component)
@@ -1810,7 +1885,16 @@ let arm_STP = define
            (if offset_writesback off
             then Rn := word_add base (offset_writeback off)
             else (=))
-         else ASSIGNS entirety) s`;;
+            else
+           let ostate_old = read ostate s in
+           let (PC_new,registers_new,simdregisters_new,flags_new,memory_new) = (read oracle s) ostate_old in
+           PC := PC_new ,,
+           registers := registers_new ,,
+           simdregisters := simdregisters_new ,,
+           flags := flags_new ,,
+           memory := memory_new ,,
+           ostate := ostate_old + 1 ,,
+           events := CONS (EventStore addr) events_old) s`;;
 
 (* ------------------------------------------------------------------------- *)
 (* SHA-related SIMD operations                                               *)
@@ -1909,6 +1993,25 @@ let arm_BLE = define `arm_BLE = arm_Bcond Condition_LE`;;
 let arm_BAL = define `arm_BAL = arm_Bcond Condition_AL`;;
 let arm_BNV = define `arm_BNV = arm_Bcond Condition_NV`;;
 
+let arm_spec_BEQ = define `arm_spec_BEQ = arm_spec_Bcond Condition_EQ`;;
+let arm_spec_BNE = define `arm_spec_BNE = arm_spec_Bcond Condition_NE`;;
+let arm_spec_BCS = define `arm_spec_BCS = arm_spec_Bcond Condition_CS`;;
+let arm_spec_BHS = define `arm_spec_BHS = arm_spec_Bcond Condition_HS`;;
+let arm_spec_BCC = define `arm_spec_BCC = arm_spec_Bcond Condition_CC`;;
+let arm_spec_BLO = define `arm_spec_BLO = arm_spec_Bcond Condition_LO`;;
+let arm_spec_BMI = define `arm_spec_BMI = arm_spec_Bcond Condition_MI`;;
+let arm_spec_BPL = define `arm_spec_BPL = arm_spec_Bcond Condition_PL`;;
+let arm_spec_BVS = define `arm_spec_BVS = arm_spec_Bcond Condition_VS`;;
+let arm_spec_BVC = define `arm_spec_BVC = arm_spec_Bcond Condition_VC`;;
+let arm_spec_BHI = define `arm_spec_BHI = arm_spec_Bcond Condition_HI`;;
+let arm_spec_BLS = define `arm_spec_BLS = arm_spec_Bcond Condition_LS`;;
+let arm_spec_BGE = define `arm_spec_BGE = arm_spec_Bcond Condition_GE`;;
+let arm_spec_BLT = define `arm_spec_BLT = arm_spec_Bcond Condition_LT`;;
+let arm_spec_BGT = define `arm_spec_BGT = arm_spec_Bcond Condition_GT`;;
+let arm_spec_BLE = define `arm_spec_BLE = arm_spec_Bcond Condition_LE`;;
+let arm_spec_BAL = define `arm_spec_BAL = arm_spec_Bcond Condition_AL`;;
+let arm_spec_BNV = define `arm_spec_BNV = arm_spec_Bcond Condition_NV`;;
+
 let arm_CINC = define
  `arm_CINC Rd Rn cc = arm_CSINC Rd Rn Rn (invert_condition cc)`;;
 
@@ -1950,10 +2053,10 @@ let arm_UMNEGL = define `arm_UMNEGL Rd Rn Rm = arm_UMSUBL Rd Rn Rm XZR`;;
 let arm_UMULL = define `arm_UMULL Rd Rn Rm = arm_UMADDL Rd Rn Rm XZR`;;
 
 let ARM_INSTRUCTION_ALIASES =
- [arm_BEQ; arm_BNE; arm_BCS; arm_BHS; arm_BCC;
-  arm_BLO; arm_BMI; arm_BPL; arm_BVS; arm_BVC;
-  arm_BHI; arm_BLS; arm_BGE; arm_BLT; arm_BGT;
-  arm_BLE; arm_BAL; arm_BNV; arm_CINC; arm_CINV;
+ [arm_spec_BEQ; arm_spec_BNE; arm_spec_BCS; arm_spec_BHS; arm_spec_BCC;
+  arm_spec_BLO; arm_spec_BMI; arm_spec_BPL; arm_spec_BVS; arm_spec_BVC;
+  arm_spec_BHI; arm_spec_BLS; arm_spec_BGE; arm_spec_BLT; arm_spec_BGT;
+  arm_spec_BLE; arm_spec_BAL; arm_spec_BNV; arm_CINC; arm_CINV;
   arm_CNEG; arm_CMN; arm_CMP;arm_CSET; arm_CSETM;
   arm_MOV; arm_MOV_VEC;
   arm_MNEG; arm_MUL; arm_MVN; arm_NEG;
@@ -2232,6 +2335,16 @@ let arm_CBZ_ALT = prove
              events := CONS (EventBranch p) events_old) s`,
   REWRITE_TAC[VAL_EQ_0; arm_CBZ]);;
 
+let arm_spec_CBZ_ALT = prove
+ (`arm_spec_CBZ Rt (off:21 word) =
+        \s. let p = val(read Rt s) = 0
+            and events_old = read events s
+            and preds_old = read preds s in
+            (PC := (if HD_OR preds_old F then word_add (word_sub (read PC s) (word 4)) (word_sx off) else read PC s) ,,
+             events := CONS (EventBranch p) events_old ,,
+             preds := TL_OR preds_old []) s`,
+  REWRITE_TAC[VAL_EQ_0; arm_spec_CBZ]);;
+
 (* ------------------------------------------------------------------------- *)
 (* MOV is an alias of MOVZ when Rm is an immediate                           *)
 (* ------------------------------------------------------------------------- *)
@@ -2292,8 +2405,8 @@ let ARM_OPERATION_CLAUSES =
       [arm_ADC; arm_ADCS_ALT; arm_ADD; arm_ADD_VEC_ALT; arm_ADDS_ALT; arm_ADR;
        arm_AND; arm_AND_VEC; arm_ANDS; arm_ASR; arm_ASRV;
        arm_B; arm_BFM; arm_BIC; arm_BIC_VEC; arm_BICS; arm_BIT;
-       arm_BL; arm_BL_ABSOLUTE; arm_Bcond;
-       arm_CBNZ_ALT; arm_CBZ_ALT; arm_CCMN; arm_CCMP; arm_CLZ; arm_CSEL;
+       arm_BL; arm_BL_ABSOLUTE; arm_spec_Bcond;
+       arm_CBNZ_ALT; arm_spec_CBZ_ALT; arm_CCMN; arm_CCMP; arm_CLZ; arm_CSEL;
        arm_CSINC; arm_CSINV; arm_CSNEG;
        arm_DUP_GEN;
        arm_EON; arm_EOR; arm_EXT; arm_EXTR;
